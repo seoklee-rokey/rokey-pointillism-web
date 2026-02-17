@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>작품 상세</title>
+    <style>
+        .btn-primary {
+            padding: 8px 12px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 14px;
+            background: #2563eb;
+            color: white;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .btn-primary:hover {
+            background: #1e40af;
+        }
+
+        .btn-danger {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f4f6f9;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 30px;
+            background: #1f2937;
+            color: #fff;
+        }
+
+        .header a {
+            color: #fff;
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 30px;
+        }
+
+        .card {
+            background: #fff;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, .1);
+        }
+
+        .title {
+            font-size: 22px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .meta {
+            color: #6b7280;
+            font-size: 14px;
+            margin-bottom: 16px;
+        }
+
+        .desc {
+            white-space: pre-wrap;
+            line-height: 1.5;
+            color: #111827;
+        }
+
+        img {
+            width: 100%;
+            max-height: 520px;
+            object-fit: contain;
+            border-radius: 8px;
+            border: 1px solid #eee;
+            margin: 14px 0;
+            background: #fafafa;
+        }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 16px;
+        }
+
+        .btn {
+            padding: 10px 14px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .btn-ghost {
+            background: #e5e7eb;
+            color: #111827;
+        }
+
+        .btn-ghost:hover {
+            background: #d1d5db;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 10px;
+        }
+
+        .btn-top {
+            padding: 8px 12px;
+            background: #e5e7eb;
+            color: #111827;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .btn-top:hover {
+            background: #d1d5db;
+        }
+
+        .title-row {
+            display: flex;
+            justify-content: space-between;
+            /* 좌우 끝 정렬 */
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .title {
+            font-size: 22px;
+            font-weight: bold;
+            margin: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <div><b>DOOSAN ROKEY</b> / 작품 상세</div>
+        <div style="display:flex; gap:14px;">
+            <!-- <a href="{{ url_for('main_page') }}">목록</a> -->
+            <a href="{{ url_for('logout') }}">Logout</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <!-- ✅ 카드 상단 오른쪽 버튼 영역 -->
+
+
+            <div class="title-row">
+                <div class="title">{{ art.title }}</div>
+
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <a href="{{ url_for('artwork_edit', artwork_id=art.id) }}" class="btn-primary">수정</a>
+
+
+                    <form method="POST" action="{{ url_for('artwork_delete', artwork_id=art.id) }}"
+                        onsubmit="return confirm('정말 삭제할까요?');" style="margin:0;">
+                        <button type="submit" class="btn-danger">삭제</button>
+                    </form>
+
+                    <a href="{{ url_for('main_page') }}" class="btn-top">목록</a>
+                </div>
+            </div>
+
+
+            <!-- <div class="title-row">
+                <div class="title">{{ art.title }}</div>
+                <a href="{{ url_for('main_page') }}" class="btn-top">목록으로</a>
+            </div> -->
+
+
+
+
+            {% if art.image_filename %}
+            <img src="{{ url_for('uploaded_file', filename=art.image_filename) }}" alt="artwork image">
+            {% endif %}
+
+            {% if art.description %}
+            <div class="desc">{{ art.description }}</div>
+            {% else %}
+            <div class="desc" style="color:#6b7280;">설명이 없습니다.</div>
+            {% endif %}
+
+        </div>
+    </div>
+</body>
+
+</html>

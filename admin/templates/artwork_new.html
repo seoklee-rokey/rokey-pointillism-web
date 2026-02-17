@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>작품 추가</title>
+  <style>
+    body { margin:0; font-family: Arial, sans-serif; background:#f4f6f9; }
+    .header { display:flex; justify-content:space-between; align-items:center;
+      padding:15px 30px; background:#1f2937; color:#fff; }
+    .header a { color:#fff; text-decoration:none; font-weight:bold; }
+    .container { max-width: 900px; margin: 0 auto; padding: 30px; }
+    .card { background:#fff; border-radius:8px; padding:20px; box-shadow:0 2px 6px rgba(0,0,0,.1); }
+    .row { margin-bottom: 14px; }
+    label { display:block; font-weight:bold; margin-bottom:6px; color:#333; }
+    input[type="text"], textarea { width:100%; padding:10px; border:1px solid #ddd; border-radius:6px; box-sizing:border-box; }
+    textarea { min-height: 120px; resize: vertical; }
+    .actions { display:flex; gap:10px; margin-top: 18px; }
+    button { padding:10px 16px; border:none; border-radius:6px; cursor:pointer; font-weight:bold; }
+    .btn-primary { background:#2563eb; color:#fff; }
+    .btn-primary:hover { background:#1e40af; }
+    .btn-ghost { background:#e5e7eb; color:#111827; }
+    .btn-ghost:hover { background:#d1d5db; }
+    ul { list-style:none; padding:0; margin:0 0 12px 0; }
+    .success { color: #16a34a; margin-bottom: 6px; }
+    .error { color: #dc2626; margin-bottom: 6px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div><b>DOOSAN ROKEY</b> / 작품 추가</div>
+    <div style="display:flex; gap:14px;">
+      <!-- <a href="{{ url_for('main_page') }}">목록</a> -->
+      <a href="{{ url_for('logout') }}">Logout</a>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="card">
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <ul>
+            {% for category, message in messages %}
+              <li class="{{ category }}">{{ message }}</li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+      {% endwith %}
+
+      <form method="POST" enctype="multipart/form-data">
+        <div class="row">
+          <label>제목 *</label>
+          <input type="text" name="title" placeholder="작품 제목" required />
+        </div>
+
+        <div class="row">
+          <label>설명</label>
+          <textarea name="description" placeholder="설명(선택)"></textarea>
+        </div>
+
+        <div class="row">
+          <label>이미지 업로드 (선택)</label>
+          <input type="file" name="image" accept=".png,.jpg,.jpeg,.webp" />
+        </div>
+
+        <div class="actions">
+          <button class="btn-primary" type="submit">저장</button>
+          <button class="btn-ghost" type="button" onclick="location.href='{{ url_for('main_page') }}'">취소</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</body>
+</html>

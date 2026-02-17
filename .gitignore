@@ -1,0 +1,12 @@
+# Firebase / Google service account keys
+*.json
+!package.json
+!package-lock.json
+!firebase.json
+!firestore.rules
+!firestore.indexes.json
+!storage.rules
+
+# 혹은 더 정확히 (추천)
+test/rokey-c1fc2-firebase-adminsdk-fbsvc-5ba5f78dcd.json
+admin/rokey-c1fc2-firebase-adminsdk-fbsvc-5ba5f78dcd.json
