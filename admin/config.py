@@ -16,6 +16,6 @@ DATABASE_URL = "https://rokey-c1fc2-default-rtdb.asia-southeast1.firebasedatabas
 
 
 # ✅ 업로드(로컬)
-UPLOAD_DIR = "./uploads"
+UPLOAD_DIR = "uploads"
 ALLOWED_EXTS = {"png", "jpg", "jpeg", "webp"}
 MAX_CONTENT_LENGTH = 10 * 1024 * 1024  # 10MB
