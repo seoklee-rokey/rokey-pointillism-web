@@ -4,7 +4,7 @@ import shutil
 from pathlib import Path
 
 import time
-
+import requests
 
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory, jsonify, abort
 import qrcode
@@ -313,7 +313,81 @@ def process_image(token):
     )
     return jsonify({"ok": True, "processed_url": processed_url})
 
+ROBOT_BRIDGE_URL = "http://127.0.0.1:8089"  # 브리지 주소 (너가 쓰는 포트로 맞추기)
 
+@app.post("/api/robot/run/<token>")
+def api_robot_run(token):
+    token_path = token_dir(token)
+
+    originals = list(token_path.glob("original.*"))
+    if not originals:
+        abort(404, "No original image")
+
+    data = request.get_json(silent=True) or {}
+    edge_prob = float(data.get("edge_prob", 0.5))
+    inner_density = float(data.get("inner_density", 0.01))
+    color_mode = data.get("color_mode", "bw")
+
+    original = originals[0]
+    processed_path = token_path / "processed.png"
+
+    # ✅ 점 생성 + 프리뷰도 같이 갱신(웹 미리보기와 goal이 1:1로 맞게)
+    result_points, w, h = generate_stipple(
+        img_path=original,
+        edge_prob=edge_prob,
+        inner_density=inner_density,
+        color_mode=color_mode,
+        save_preview_path=processed_path,
+        show_preview=False
+    )
+    # test
+    print("generate_stipple 첫 5개:", result_points[:5])
+    print("이미지 크기:", w, h)
+
+    # ✅ (x_px, y_px, v) -> 정규화 (0~1) + v 유지
+    #denom_w = max(1, (w - 1))
+    #denom_h = max(1, (h - 1))
+    dots_px = [[float(x), float(y), int(v)] for (x, y, v) in result_points]
+
+    # ✅ 브리지로 전송 -> job_id 받기
+    try:
+        r = requests.post(
+            f"{ROBOT_BRIDGE_URL}/run",
+            json={
+                "token": token,
+                "w": w, "h": h,
+                "dots": dots_px,
+                "color_mode": color_mode
+            },
+            timeout=10.0
+        )
+        r.raise_for_status()
+        payload = r.json()
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Bridge error: {e}"}), 502
+
+    return jsonify({
+        "ok": True,
+        "sent": len(dots_px),
+        "job_id": payload.get("job_id")
+    })
+
+
+@app.get("/api/robot/status/<job_id>")
+def api_robot_status(job_id):
+    try:
+        r = requests.get(f"{ROBOT_BRIDGE_URL}/status/{job_id}", timeout=5.0)
+        r.raise_for_status()
+        payload = r.json()
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Bridge error: {e}"}), 502
+
+    # payload는 브리지에서 내려주는 그대로 pass-through
+    return jsonify(payload)
+
+@app.get("/robot/run/<job_id>")
+def robot_run_page(job_id):
+    return render_template("robot_run.html", job_id=job_id)
 
 # if __name__ == "__main__":
 #     app.run(host="0.0.0.0", port=5000, debug=True)
