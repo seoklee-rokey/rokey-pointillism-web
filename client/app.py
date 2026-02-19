@@ -115,7 +115,6 @@ def camera_upload(token):
         abort(400, "No image field")
 
     f = request.files["image"]
-    # 캡처는 png로 받는다고 가정
     original_path = token_path / "original.png"
     f.save(original_path)
 
