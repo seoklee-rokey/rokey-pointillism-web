@@ -5,13 +5,14 @@ from pathlib import Path
 
 import time
 
+
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory, jsonify, abort
 import qrcode
 from PIL import Image, ImageOps
 
 # app.py 상단 어딘가에 추가(점묘화용 추가)
 from stipple_processor import generate_stipple
-
+#test 주석
 
 app = Flask(__name__)
 
