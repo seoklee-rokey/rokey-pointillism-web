@@ -3,7 +3,8 @@ from stipple_module import generate_stipple
 def main():
 
     points, img_w, img_h = generate_stipple(
-        img_path="img.jpeg"
+        img_path="img.jpeg",
+        color_mode="color"
     )
 
     print("이미지 크기:", img_w, img_h)

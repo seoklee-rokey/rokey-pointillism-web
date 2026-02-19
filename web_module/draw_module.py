@@ -170,3 +170,81 @@ def generate_stipple(
 
     return result_points, w, h
 
+# --------------------------------------------------
+# 스케치 생성 (연속 stroke 기반)
+def generate_sketch(
+        img_path,
+        color_mode="bw",
+        max_size=200,
+        min_stroke_length=10,
+        show_preview=True
+):
+
+    image = cv2.imread(img_path)
+    if image is None:
+        raise ValueError("이미지 로드 실패")
+
+    image = resize_keep_ratio(image, max_size)
+
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    edges = cv2.Canny(gray, 100,200)
+
+    h, w = gray.shape
+
+    # 작은 노이즈 제거
+    kernel = np.ones((3,3), np.uint8)
+    edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel)
+
+    # 연결 컴포넌트 분리
+    num_labels, labels = cv2.connectedComponents(edges)
+
+    strokes = []
+    preview = 255 * np.ones((h, w, 3), dtype=np.uint8)
+
+    for label in range(1, num_labels):
+
+        ys, xs = np.where(labels == label)
+
+        if len(xs) < min_stroke_length:
+            continue
+
+        # 좌표 리스트 생성
+        points = list(zip(xs, ys))
+
+        # 간단한 정렬 (왼쪽부터 시작)
+        points.sort(key=lambda p: (p[0], p[1]))
+
+        ordered_stroke = []
+
+        for x, y in points:
+
+            if color_mode == "bw":
+                rgb_color = (0, 0, 0)
+            else:
+                b, g, r = image[y, x]
+                rgb_color = nearest_color(r, g, b)
+
+                if rgb_color == (255, 255, 255):
+                    continue
+
+            v = color_to_index(rgb_color)
+
+            ordered_stroke.append((x, y, v))
+
+            cv2.circle(
+                preview,
+                (x, y),
+                0,
+                (rgb_color[2], rgb_color[1], rgb_color[0]),
+                -1
+            )
+
+        if len(ordered_stroke) > 0:
+            strokes.append(ordered_stroke)
+
+    if show_preview:
+        cv2.imshow("Sketch Preview", preview)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
+    return strokes, w, h
