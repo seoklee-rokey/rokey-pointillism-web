@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>로봇 진행도</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <style>
+    .card{max-width:720px;margin:0 auto;background:#121a2a;border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:18px;}
+    .bar{height:14px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden;}
+    .bar > div{height:100%;width:0%;background:#3b82f6;}
+    .meta{display:flex;justify-content:space-between;margin-top:10px;font-size:13px;opacity:.85}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <h1 class="title">로봇 작동 중</h1>
+
+    <div class="card">
+      <div class="bar"><div id="fill"></div></div>
+      <div class="meta">
+        <div id="percent">0%</div>
+        <div id="msg">대기 중...</div>
+      </div>
+    </div>
+
+    <div class="controls" style="margin-top:16px;">
+      <button class="btn" type="button" onclick="location.href='/'">메인</button>
+    </div>
+  </main>
+
+  <script>
+    const jobId = "{{ job_id }}";
+    const fill = document.getElementById("fill");
+    const percentEl = document.getElementById("percent");
+    const msgEl = document.getElementById("msg");
+
+    async function tick(){
+      const res = await fetch(`/api/robot/status/${jobId}`);
+      const data = await res.json();
+
+      if (!res.ok || !data.ok) {
+        msgEl.textContent = (data && data.error) ? data.error : "상태 조회 실패";
+        return;
+      }
+
+      const p = Math.max(0, Math.min(100, Number(data.percent ?? data.progress ?? 0)));
+      fill.style.width = p.toFixed(1) + "%";
+      percentEl.textContent = p.toFixed(1) + "%";
+      msgEl.textContent = data.message ?? `current_v=${data.current_v ?? "-"}`;
+
+      // ✅ 완료 처리(브리지 payload에 맞춰 한 줄만 수정하면 됨)
+      if (data.done === true || data.state === "SUCCEEDED") {
+        window.location.href = `/robot/done/${jobId}`;
+      }
+    }
+
+    tick();
+    setInterval(tick, 350);
+  </script>
+</body>
+</html>

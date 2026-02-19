@@ -5,15 +5,19 @@ import shutil
 import time
 from pathlib import Path
 
-from flask import (
-    Flask, render_template, request, redirect, url_for,
-    send_from_directory, jsonify, abort
-)
 import qrcode
 from PIL import Image, ImageOps
 
 from stipple_processor import generate_stipple
 
+import requests
+
+from flask import Flask, render_template, request, redirect, url_for, send_from_directory, jsonify, abort
+
+# app.py 상단 어딘가에 추가(점묘화용 추가)
+#from stipple_processor import generate_stipple
+from stipple_module import generate_stipple
+#test 주석
 
 app = Flask(__name__)
 
@@ -130,7 +134,15 @@ def phone_upload_post(token):
     # save_grayscale(original_path, processed_path)
     # 커스터마이징용 프로토타입(색상 적용) 생성
     processed_path = token_path / "processed.png"
-    generate_stipple(original_path, processed_path, 50, color=True)
+    #generate_stipple(original_path, processed_path, 50, color=True)
+    generate_stipple(
+        img_path=original_path,
+        edge_prob=0.5,
+        inner_density=0.01,
+        color_mode="bw",
+        save_preview_path=processed_path,
+        show_preview=False
+    )
 
 
     return render_template("upload_done.html")
@@ -159,7 +171,15 @@ def camera_upload(token):
 
     processed_path = token_path / "processed.png"
     #save_grayscale(original_path, processed_path)
-    generate_stipple(original_path, processed_path, 50, color=True)
+    #generate_stipple(original_path, processed_path, 50, color=True)
+    generate_stipple(
+        img_path=original_path,
+        edge_prob=0.5,
+        inner_density=0.01,
+        color_mode="bw",
+        save_preview_path=processed_path,
+        show_preview=False
+    )
 
     return jsonify({"ok": True, "next": url_for("customize_page", token=token)})
 
@@ -226,7 +246,15 @@ def select_gallery(token):
 
     processed_path = token_path / "processed.png"
     #save_grayscale(original_path, processed_path)
-    generate_stipple(original_path, processed_path, 50, color=True)
+    #generate_stipple(original_path, processed_path, 50, color=True)
+    generate_stipple(
+        img_path=original_path,
+        edge_prob=0.5,
+        inner_density=0.01,
+        color_mode="bw",
+        save_preview_path=processed_path,
+        show_preview=False
+    )
 
     return redirect(url_for("customize_page", token=token))
 
@@ -265,8 +293,15 @@ def customize_page(token):
     # ✅ processed가 아직 없으면 여기서 생성 (타이밍 문제 방지)
     if not processed_path.exists():
         #save_grayscale(original, processed_path)
-        generate_stipple(original, processed_path, 50, color=True)
-        
+        #generate_stipple(original, processed_path, 50, color=True)
+        generate_stipple(
+            img_path=original,
+            edge_prob=0.5,
+            inner_density=0.01,
+            color_mode="bw",
+            save_preview_path=processed_path,
+            show_preview=False
+        )
     original_url = url_for("uploaded_file", token=token, filename=original.name)
     processed_url = (
         url_for("uploaded_file", token=token, filename="processed.png")
@@ -293,7 +328,6 @@ def check_upload(token):
     return {"uploaded": len(originals) > 0}
 
 
-# 점묘화 재생성 (밀도 변경)
 @app.route("/process/<token>", methods=["POST"])
 def process_image(token):
     token_path = token_dir(token)
@@ -303,21 +337,110 @@ def process_image(token):
         abort(404, "No original image")
 
     data = request.get_json(silent=True) or {}
-    density = int(data.get("density", 50))
+
+    # ✅ 새 파라미터 3개 받기 (기본값 포함)
+    edge_prob = float(data.get("edge_prob", 0.5))          # 0.1 ~ 1.0
+    inner_density = float(data.get("inner_density", 0.01)) # 0.00 ~ 0.50
+    color_mode = data.get("color_mode", "bw")              # "bw" | "color"
 
     original = originals[0]
     processed_path = token_path / "processed.png"
 
     # ✅ 점묘화 생성(실험용)
-    generate_stipple(original, processed_path, density)
+    # generate_stipple(original, processed_path, density)
     # ✅ 캐시 무효화해서 브라우저가 새 파일을 다시 받게 함
+    # ✅ 점묘화 생성 (웹용: 저장 경로를 save_preview_path로)
+    generate_stipple(
+        img_path=original,
+        edge_prob=edge_prob,
+        inner_density=inner_density,
+        color_mode=color_mode,
+        save_preview_path=processed_path,
+        show_preview=False
+    )
+
+    # ✅ 캐시 무효화
     processed_url = (
         url_for("uploaded_file", token=token, filename="processed.png")
         + f"?v={int(time.time())}"
     )
     return jsonify({"ok": True, "processed_url": processed_url})
 
+ROBOT_BRIDGE_URL = "http://127.0.0.1:8089"  # 브리지 주소 (너가 쓰는 포트로 맞추기)
 
+@app.post("/api/robot/run/<token>")
+def api_robot_run(token):
+    token_path = token_dir(token)
+
+    originals = list(token_path.glob("original.*"))
+    if not originals:
+        abort(404, "No original image")
+
+    data = request.get_json(silent=True) or {}
+    edge_prob = float(data.get("edge_prob", 0.5))
+    inner_density = float(data.get("inner_density", 0.01))
+    color_mode = data.get("color_mode", "bw")
+
+    original = originals[0]
+    processed_path = token_path / "processed.png"
+
+    # ✅ 점 생성 + 프리뷰도 같이 갱신(웹 미리보기와 goal이 1:1로 맞게)
+    result_points, w, h = generate_stipple(
+        img_path=original,
+        edge_prob=edge_prob,
+        inner_density=inner_density,
+        color_mode=color_mode,
+        save_preview_path=processed_path,
+        show_preview=False
+    )
+    # test
+    print("generate_stipple 첫 5개:", result_points[:5])
+    print("이미지 크기:", w, h)
+
+    # ✅ (x_px, y_px, v) -> 정규화 (0~1) + v 유지
+    #denom_w = max(1, (w - 1))
+    #denom_h = max(1, (h - 1))
+    dots_px = [[float(x), float(y), int(v)] for (x, y, v) in result_points]
+
+    # ✅ 브리지로 전송 -> job_id 받기
+    try:
+        r = requests.post(
+            f"{ROBOT_BRIDGE_URL}/run",
+            json={
+                "token": token,
+                "w": w, "h": h,
+                "dots": dots_px,
+                "color_mode": color_mode
+            },
+            timeout=10.0
+        )
+        r.raise_for_status()
+        payload = r.json()
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Bridge error: {e}"}), 502
+
+    return jsonify({
+        "ok": True,
+        "sent": len(dots_px),
+        "job_id": payload.get("job_id")
+    })
+
+
+@app.get("/api/robot/status/<job_id>")
+def api_robot_status(job_id):
+    try:
+        r = requests.get(f"{ROBOT_BRIDGE_URL}/status/{job_id}", timeout=5.0)
+        r.raise_for_status()
+        payload = r.json()
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Bridge error: {e}"}), 502
+
+    # payload는 브리지에서 내려주는 그대로 pass-through
+    return jsonify(payload)
+
+@app.get("/robot/run/<job_id>")
+def robot_run_page(job_id):
+    return render_template("robot_run.html", job_id=job_id)
 
 # if __name__ == "__main__":
 #     app.run(host="0.0.0.0", port=5000, debug=True)
