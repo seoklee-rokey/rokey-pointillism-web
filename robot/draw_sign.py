@@ -30,9 +30,9 @@ ACC = 50
 DRAW_Z = 68     # 종이에 닿는 높이 (실측 후 조정!)
 LIFT_Z = 136     # 선 이동 시 높이
 
-RX = 180
-RY = 0
-RZ = 180
+RX = 0
+RY = 180
+RZ = 0
 
 DR_init.__dsr__id = ROBOT_ID
 DR_init.__dsr__model = ROBOT_MODEL
@@ -67,20 +67,19 @@ def perform_drawing(robot_strokes):
         set_ref_coord,
         release_force,
         release_compliance_ctrl,
-        check_force_condition,
         wait,
         DR_FC_MOD_REL,
-        DR_AXIS_Z,
         DR_MVS_VEL_NONE
     )
 
     # -----------------------------
-    # 튜닝값
+    # 안정 세팅값
     # -----------------------------
-    DRAW_VEL = 30
+    DRAW_VEL = 25
     DRAW_ACC = 40
-    Z_FORCE = 8
-    MAX_SEG = 120   # movesx 최대 안전 포인트 수
+    Z_FORCE = 4              # 처음엔 낮게 시작
+    MAX_SEG = 100
+    APPROACH_Z = DRAW_Z + 10  # 종이 위 10mm에서 force 시작
 
     JReady = [0, 0, 90, 0, 90, 0]
     movej(JReady, vel=VELOCITY, acc=ACC)
@@ -92,7 +91,7 @@ def perform_drawing(robot_strokes):
 
         print(f"✏️ Drawing stroke {stroke_idx}")
 
-        sx, sy, v = stroke[0]
+        sx, sy, _ = stroke[0]
 
         # 1️⃣ 시작점 위로 이동
         movel(
@@ -101,54 +100,46 @@ def perform_drawing(robot_strokes):
             acc=ACC
         )
 
-        # 2️⃣ 종이 근처까지 이동
+        # 2️⃣ 종이 위 5mm 위치
         movel(
-            posx([sx, sy, DRAW_Z, RX, RY, RZ]),
+            posx([sx, sy, APPROACH_Z, RX, RY, RZ]),
             vel=DRAW_VEL,
             acc=DRAW_ACC
         )
 
         # ===============================
-        # ⭐ 힘제어 시작
+        # ⭐ Force Control 시작 (Base 기준)
         # ===============================
         print("🟢 Force control ON")
 
-        set_ref_coord(1)  # Tool 좌표계
+        set_ref_coord(0)  # Base 좌표계 (안정적)
 
         task_compliance_ctrl(
-            stx=[1500, 1500, 250, 300, 300, 300]
+            stx=[3000, 3000, 80, 300, 300, 300]  # Z 부드럽게
         )
-        wait(0.3)
+        wait(0.2)
 
         set_desired_force(
-            fd=[0, 0, Z_FORCE, 0, 0, 0],
+            fd=[0, 0, -Z_FORCE, 0, 0, 0],  # Base -Z (아래)
             dir=[0, 0, 1, 0, 0, 0],
             mod=DR_FC_MOD_REL
         )
 
-        # 힘 안정화 대기
-        while True:
-            ret = check_force_condition(DR_AXIS_Z, min=4, max=12)
-            if ret == -1:
-                break
-            wait(0.05)
+        wait(0.5)  # 종이에 자연스럽게 눌릴 시간
 
         # ===============================
-        # ⭐ 선 그리기 (분할 movesx)
+        # ⭐ 선 그리기
         # ===============================
 
         xlist = []
 
-        # 포인트 다운샘플링 (중요)
-        for i, (x, y, v) in enumerate(stroke):
-
-            if i % 2 != 0:   # 2개 중 1개만 사용
+        for i, (x, y, _) in enumerate(stroke):
+            if i % 2 != 0:
                 continue
 
-            px = posx([x, y, DRAW_Z, RX, RY, RZ])
+            px = posx([x, y, APPROACH_Z, RX, RY, RZ])
             xlist.append(px)
 
-        # 120개씩 분할 실행
         for i in range(0, len(xlist), MAX_SEG):
 
             segment = xlist[i:i + MAX_SEG]
@@ -164,7 +155,7 @@ def perform_drawing(robot_strokes):
             )
 
         # ===============================
-        # ⭐ 힘제어 종료
+        # ⭐ Force 종료
         # ===============================
         print("🔴 Force control OFF")
 
@@ -173,7 +164,8 @@ def perform_drawing(robot_strokes):
         wait(0.2)
 
         # 4️⃣ 펜 올리기
-        ex, ey, v = stroke[-1]
+        ex, ey, _ = stroke[-1]
+
         movel(
             posx([ex, ey, LIFT_Z, RX, RY, RZ]),
             vel=VELOCITY,
@@ -181,6 +173,7 @@ def perform_drawing(robot_strokes):
         )
 
     print("🎉 Drawing Finished")
+
 
 
 # -------------------------------------------------
@@ -199,7 +192,7 @@ def main(args=None):
         # 1️⃣ 이미지 → stroke 생성
         # -----------------------------------------
         strokes, img_w, img_h = generate_sketch(
-            "img.jpeg",
+            "/home/leeseungmin/Desktop/Doosan/rokey_ws/cooperation1/robot/sign.png",
             color_mode="bw",
             max_size=300,
             min_stroke_length=15,
