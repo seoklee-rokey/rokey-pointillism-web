@@ -59,7 +59,20 @@ def initialize_robot():
 # 🔹 실제 드로잉 수행
 # -------------------------------------------------
 def perform_drawing(robot_strokes):
-    from DSR_ROBOT2 import posx, movej, movel
+    from DSR_ROBOT2 import (
+        posx, movej, movel, movesx,
+        task_compliance_ctrl,
+        set_desired_force,
+        set_ref_coord,
+        release_force,
+        release_compliance_ctrl,
+        check_force_condition,
+        wait,
+        DR_FC_MOD_REL,
+        DR_AXIS_Z,
+        DR_BASE,
+        DR_MVS_VEL_NONE
+    )
 
     JReady = [0, 0, 90, 0, 90, 0]
     movej(JReady, vel=VELOCITY, acc=ACC)
@@ -71,19 +84,63 @@ def perform_drawing(robot_strokes):
 
         print(f"✏️ Drawing stroke {stroke_idx}")
 
-        # 1️⃣ 시작점 위로 이동 (펜 들고 이동)
         sx, sy, v = stroke[0]
+
+        # 1️⃣ 시작점 위로 이동
         movel(posx([sx, sy, LIFT_Z, RX, RY, RZ]),
               vel=VELOCITY, acc=ACC)
 
-        # 2️⃣ 펜 내리기
+        # 2️⃣ 종이 근처까지 이동
         movel(posx([sx, sy, DRAW_Z, RX, RY, RZ]),
               vel=VELOCITY, acc=ACC)
 
-        # 3️⃣ 선 그리기
-        for x, y, v in stroke[1:]:
-            movel(posx([x, y, DRAW_Z, RX, RY, RZ]),
-                  vel=VELOCITY, acc=ACC)
+        # ===============================
+        # ⭐ 힘제어 시작
+        # ===============================
+        print("🟢 Force control ON")
+
+        set_ref_coord(1)  # Tool 좌표계
+        task_compliance_ctrl(stx=[1000, 1000, 200, 200, 200, 200])
+        wait(0.3)
+
+        # Z축 방향으로 10N 누르기
+        set_desired_force(
+            fd=[0, 0, 10, 0, 0, 0],
+            dir=[0, 0, 1, 0, 0, 0],
+            mod=DR_FC_MOD_REL
+        )
+
+        # 힘 안정화 대기
+        while True:
+            ret = check_force_condition(DR_AXIS_Z, min=5, max=15)
+            if ret == -1:
+                break
+            wait(0.1)
+
+        # ===============================
+        # ⭐ 선 그리기 (movesx)
+        # ===============================
+        xlist = []
+
+        for x, y, v in stroke:
+            px = posx([x, y, DRAW_Z, RX, RY, RZ])
+            xlist.append(px)
+
+        movesx(
+            xlist,
+            vel=[VELOCITY * 2, VELOCITY],
+            acc=[ACC * 2, ACC],
+            vel_opt=DR_MVS_VEL_NONE
+        )
+
+        # ===============================
+        # ⭐ 힘제어 종료
+        # ===============================
+        print("🔴 Force control OFF")
+
+        release_force()
+        release_compliance_ctrl()
+        wait(0.2)
 
         # 4️⃣ 펜 올리기
         ex, ey, v = stroke[-1]
@@ -91,6 +148,7 @@ def perform_drawing(robot_strokes):
               vel=VELOCITY, acc=ACC)
 
     print("🎉 Drawing Finished")
+
 
 
 # -------------------------------------------------
@@ -111,7 +169,7 @@ def main(args=None):
         strokes, img_w, img_h = generate_sketch(
             "img.jpeg",
             color_mode="bw",
-            max_size=600,
+            max_size=300,
             min_stroke_length=15,
             show_preview=False
         )

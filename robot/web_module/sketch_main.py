@@ -3,12 +3,12 @@ from draw_module import generate_sketch
 
 def main():
 
-    image_path = "img.jpeg"  # 테스트 이미지 경로
+    image_path = "/home/leeseungmin/Desktop/Doosan/rokey_ws/cooperation1/robot/sign.png"  # 테스트 이미지 경로
 
     strokes, w, h = generate_sketch(
         image_path,
         color_mode="bw",
-        max_size=700,
+        max_size=300,
         min_stroke_length=40,
         show_preview=True
     )

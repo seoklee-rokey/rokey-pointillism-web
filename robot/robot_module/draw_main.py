@@ -9,7 +9,7 @@ from draw_planner import convert_strokes_to_robot_coords, order_stroke_points_nn
 
 
 # 1️⃣ 스케치 생성
-strokes, w, h = generate_sketch("img.jpeg", color_mode="bw", max_size=700)
+strokes, w, h = generate_sketch("/home/leeseungmin/Desktop/Doosan/rokey_ws/cooperation1/robot/sign.png", color_mode="bw", max_size=300)
 
 # 2️⃣ 필요하면 stroke 내부 NN 정렬
 strokes_ordered = [order_stroke_points_nn(s) for s in strokes]
