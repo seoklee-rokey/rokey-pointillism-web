@@ -1,25 +1,32 @@
 import os
+import sys
 import secrets
 import shutil
+import time
 from pathlib import Path
 
-import time
-
-
-from flask import Flask, render_template, request, redirect, url_for, send_from_directory, jsonify, abort
+from flask import (
+    Flask, render_template, request, redirect, url_for,
+    send_from_directory, jsonify, abort
+)
 import qrcode
 from PIL import Image, ImageOps
 
-# app.py 상단 어딘가에 추가(점묘화용 추가)
 from stipple_processor import generate_stipple
-#test 주석
+
 
 app = Flask(__name__)
 
-BASE_DIR = Path(__file__).resolve().parent
-UPLOAD_DIR = BASE_DIR / "uploads"
-QR_DIR = BASE_DIR / "static" / "qr"
-GALLERY_DIR = BASE_DIR / "static" / "gallery"
+# -------------------------------------------------
+# Path / Dir
+# -------------------------------------------------
+BASE_DIR = Path(__file__).resolve().parent          # .../client
+UPLOAD_DIR = BASE_DIR / "uploads"                  # .../client/uploads
+QR_DIR = BASE_DIR / "static" / "qr"                # .../client/static/qr
+
+# ✅ admin/uploads (client 기준 상위 폴더의 admin/uploads)
+ADMIN_DIR = (BASE_DIR / "../admin").resolve()
+GALLERY_DIR = (ADMIN_DIR / "uploads").resolve()
 
 UPLOAD_DIR.mkdir(exist_ok=True)
 QR_DIR.mkdir(parents=True, exist_ok=True)
@@ -27,6 +34,20 @@ GALLERY_DIR.mkdir(parents=True, exist_ok=True)
 
 ALLOWED_EXT = {"png", "jpg", "jpeg", "webp"}
 
+
+# -------------------------------------------------
+# ✅ DB(Firebase) 모듈 import (admin 폴더에서 가져옴)
+# -------------------------------------------------
+if str(ADMIN_DIR) not in sys.path:
+    sys.path.insert(0, str(ADMIN_DIR))
+
+# admin/firebase_db.py 안에 있는 함수 사용
+from firebase_db import list_artworks, get_artwork  # noqa: E402
+
+
+# -------------------------------------------------
+# Utils
+# -------------------------------------------------
 def new_token() -> str:
     return secrets.token_urlsafe(12)
 
@@ -46,9 +67,19 @@ def save_grayscale(src_path: Path, dst_path: Path):
     gray = ImageOps.grayscale(img).convert("RGB")
     gray.save(dst_path)
 
+
+# -------------------------------------------------
+# Static serving: admin/uploads 를 /gallery/<filename> 으로 제공
+# -------------------------------------------------
+@app.route("/gallery/<path:filename>")
+def gallery_file(filename):
+    return send_from_directory(GALLERY_DIR, filename)
+
+
 @app.route("/")
 def index():
     return render_template("index.html")
+
 
 # -------------------------
 # 1) 사진 업로드하기 (QR)
@@ -56,6 +87,7 @@ def index():
 @app.route("/qr")
 def qr_page():
     token = new_token()
+
     # QR이 찍히면 휴대폰에서 열릴 업로드 URL
     upload_url = url_for("phone_upload_page", token=token, _external=True)
 
@@ -64,7 +96,12 @@ def qr_page():
     img = qrcode.make(upload_url)
     img.save(qr_img_path)
 
-    return render_template("qr.html", token=token, upload_url=upload_url, qr_img=url_for("static", filename=f"qr/{token}.png"))
+    return render_template(
+        "qr.html",
+        token=token,
+        upload_url=upload_url,
+        qr_img=url_for("static", filename=f"qr/{token}.png"),
+    )
 
 @app.route("/u/<token>", methods=["GET"])
 def phone_upload_page(token):
@@ -111,10 +148,12 @@ def camera_page():
 @app.route("/camera_upload/<token>", methods=["POST"])
 def camera_upload(token):
     token_path = token_dir(token)
+
     if "image" not in request.files:
         abort(400, "No image field")
 
     f = request.files["image"]
+    # 캡처는 png로 받는다고 가정
     original_path = token_path / "original.png"
     f.save(original_path)
 
@@ -124,34 +163,63 @@ def camera_upload(token):
 
     return jsonify({"ok": True, "next": url_for("customize_page", token=token)})
 
+
 # -------------------------
-# 3) 전시관 사진 불러오기 (폴더 목록)
+# 3) 전시관 사진 불러오기 (✅ DB 조회 + admin/uploads 기반)
 # -------------------------
 @app.route("/gallery")
 def gallery_page():
     token = new_token()
     token_dir(token)
 
-    # static/gallery 내 이미지 목록
-    items = []
-    for p in sorted(GALLERY_DIR.glob("*")):
-        if p.suffix.lower().lstrip(".") in ALLOWED_EXT:
-            items.append(p.name)
+    # ✅ (1) DB에서 작품 목록 조회 (Firebase Realtime DB: /artworks)
+    artworks = list_artworks(limit=500)
 
+    # ✅ (2) DB 항목 중 admin/uploads에 실제 파일 존재하는 것만 노출
+    items = []
+    for a in artworks:
+        filename = (a.get("image_filename") or "").strip()
+        if not filename:
+            continue
+        if not allowed(filename):
+            continue
+        if not (GALLERY_DIR / filename).exists():
+            continue
+
+        items.append({
+            "id": a.get("id"),
+            "title": a.get("title") or filename,
+            "image_filename": filename,
+            "created_at": a.get("created_at", 0),
+        })
+
+    # gallery.html은 items가 dict 리스트라고 가정
     return render_template("gallery.html", token=token, items=items)
+
 
 @app.route("/select_gallery/<token>", methods=["POST"])
 def select_gallery(token):
     token_path = token_dir(token)
-    filename = request.form.get("filename", "")
+
+    # ✅ gallery.html에서 artwork_id로 넘어온다고 가정
+    artwork_id = (request.form.get("artwork_id") or "").strip()
+    if not artwork_id:
+        abort(400, "No artwork_id")
+
+    # ✅ (3) DB에서 해당 작품 1개 조회 → image_filename 획득
+    art = get_artwork(artwork_id)
+    if not art:
+        abort(404, "Artwork not found")
+
+    filename = (art.get("image_filename") or "").strip()
     if not filename:
-        abort(400, "No filename")
+        abort(404, "No image for this artwork")
 
     src = GALLERY_DIR / filename
     if not src.exists():
-        abort(404, "File not found")
+        abort(404, "File not found in admin/uploads")
 
-    # 선택한 파일을 uploads/token/original.ext 로 복사
+    # ✅ 선택한 파일을 uploads/<token>/original.ext 로 복사
     ext = src.suffix.lower().lstrip(".")
     original_path = token_path / f"original.{ext}"
     shutil.copyfile(src, original_path)
@@ -161,6 +229,7 @@ def select_gallery(token):
     generate_stipple(original_path, processed_path, 50, color=True)
 
     return redirect(url_for("customize_page", token=token))
+
 
 # -------------------------
 # 커스터마이징(로봇 작동 전) 페이지
@@ -199,8 +268,10 @@ def customize_page(token):
         generate_stipple(original, processed_path, 50, color=True)
         
     original_url = url_for("uploaded_file", token=token, filename=original.name)
-    # ✅ 캐시 무효화 쿼리 (캐시 문제 방지)
-    processed_url = url_for("uploaded_file", token=token, filename="processed.png") + f"?v={int(time.time())}"
+    processed_url = (
+        url_for("uploaded_file", token=token, filename="processed.png")
+        + f"?v={int(time.time())}"
+    )
 
     return render_template(
         "customize.html",
@@ -210,11 +281,10 @@ def customize_page(token):
     )
 
 
-
-
 @app.route("/uploads/<token>/<path:filename>")
 def uploaded_file(token, filename):
     return send_from_directory(UPLOAD_DIR / token, filename)
+
 
 @app.route("/check_upload/<token>")
 def check_upload(token):
@@ -223,7 +293,7 @@ def check_upload(token):
     return {"uploaded": len(originals) > 0}
 
 
-# 점묘화용 추가
+# 점묘화 재생성 (밀도 변경)
 @app.route("/process/<token>", methods=["POST"])
 def process_image(token):
     token_path = token_dir(token)
@@ -240,9 +310,11 @@ def process_image(token):
 
     # ✅ 점묘화 생성(실험용)
     generate_stipple(original, processed_path, density)
-
     # ✅ 캐시 무효화해서 브라우저가 새 파일을 다시 받게 함
-    processed_url = url_for("uploaded_file", token=token, filename="processed.png") + f"?v={int(time.time())}"
+    processed_url = (
+        url_for("uploaded_file", token=token, filename="processed.png")
+        + f"?v={int(time.time())}"
+    )
     return jsonify({"ok": True, "processed_url": processed_url})
 
 
@@ -251,4 +323,4 @@ def process_image(token):
 #     app.run(host="0.0.0.0", port=5000, debug=True)
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True, ssl_context="adhoc")
+    app.run(host="0.0.0.0", port=5169, debug=True, ssl_context="adhoc")

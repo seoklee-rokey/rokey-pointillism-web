@@ -44,12 +44,12 @@
     <h1 class="title">전시관 사진 불러오기</h1>
 
     <div class="grid">
-      {% for name in items %}
+      {% for it in items %}
         <form class="thumb" action="/select_gallery/{{ token }}" method="post">
-          <input type="hidden" name="filename" value="{{ name }}" />
+          <input type="hidden" name="artwork_id" value="{{ it.id }}" />
           <button type="submit" style="all:unset; cursor:pointer; width:100%;">
-            <img src="/static/gallery/{{ name }}" alt="{{ name }}">
-            <p>{{ name }}</p>
+            <img src="{{ url_for('gallery_file', filename=it.image_filename) }}" alt="{{ it.title }}">
+            <p>{{ it.title }}</p>
           </button>
         </form>
       {% endfor %}
