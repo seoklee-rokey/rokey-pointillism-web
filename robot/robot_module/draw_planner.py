@@ -42,7 +42,7 @@ def convert_strokes_to_robot_coords(strokes, img_w, img_h):
     for stroke in strokes:
         robot_stroke = []
         for x, y, v in stroke:
-            rx = offset_x + x * scale
+            rx = offset_x + (img_w - x) * scale
             ry = offset_y + y * scale
             robot_stroke.append((rx, ry, v))
         robot_strokes.append(robot_stroke)
@@ -52,59 +52,39 @@ def convert_strokes_to_robot_coords(strokes, img_w, img_h):
 
 # --------------------------------------------------
 # stroke 내부 순서 NN 정렬 (선택적)
-def order_stroke_points_nn(stroke, cell_size=10):
+def order_stroke_points_nn(stroke, close_loop=True):
     """
     stroke: [(x, y, v), ...]
-    return: [(x, y, v), ...]  # NN 순서
+    close_loop: True면 시작점으로 되돌아오는 폐곡선 생성
     """
+
     if not stroke:
         return []
 
-    pts = [(p[0], p[1]) for p in stroke]
-    grid = {}
+    # 좌표만 분리
+    remaining = [(p[0], p[1]) for p in stroke]
 
-    def cell_coord(p):
-        return (int(p[0]) // cell_size, int(p[1]) // cell_size)
-
-    for p in pts:
-        c = cell_coord(p)
-        grid.setdefault(c, []).append(p)
-
-    def remove_point(p):
-        c = cell_coord(p)
-        grid[c].remove(p)
-        if not grid[c]:
-            del grid[c]
-
-    # 시작점은 가장 왼쪽 점
-    current = min(pts, key=lambda p: p[0])  
+    # 1️⃣ 아무 점이나 시작점 (첫 점 사용)
+    current = remaining.pop(0)
     ordered = [current]
-    remove_point(current)
-    pts.remove(current)
 
-    def find_nearest(cur):
-        cx, cy = cell_coord(cur)
-        radius = 0
-        while True:
-            for dx in range(-radius, radius + 1):
-                for dy in range(-radius, radius + 1):
-                    if abs(dx) != radius and abs(dy) != radius:
-                        continue
-                    cell = (cx + dx, cy + dy)
-                    if cell in grid and grid[cell]:
-                        return min(
-                            grid[cell],
-                            key=lambda p: (p[0]-cur[0])**2 + (p[1]-cur[1])**2
-                        )
-            radius += 1
-
-    while pts:
-        next_pt = find_nearest(current)
+    # 2️⃣ 가장 가까운 점 계속 선택
+    while remaining:
+        next_pt = min(
+            remaining,
+            key=lambda p: (p[0] - current[0])**2 +
+                          (p[1] - current[1])**2
+        )
         ordered.append(next_pt)
-        remove_point(next_pt)
-        pts.remove(next_pt)
+        remaining.remove(next_pt)
         current = next_pt
 
-    # 색상 값 복원
-    ordered_with_v = [(x, y, stroke[0][2]) for x, y in ordered]
+    # 3️⃣ 폐곡선이면 시작점으로 복귀
+    if close_loop:
+        ordered.append(ordered[0])
+
+    # 4️⃣ 색상값 복원
+    v_val = stroke[0][2]
+    ordered_with_v = [(x, y, v_val) for x, y in ordered]
+
     return ordered_with_v
