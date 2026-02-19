@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>사진 업로드</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+  <main class="wrap">
+    <h1 class="title">사진 업로드</h1>
+
+    <form action="/u/{{ token }}" method="post" enctype="multipart/form-data" style="display:grid; gap:12px; width:min(420px, 100%);">
+      <input class="modal-btn" type="file" name="file" accept="image/*" required />
+      <button class="primary-btn" type="submit">업로드</button>
+    </form>
+
+    <p style="opacity:.75;">업로드 완료 후 자동으로 커스터마이징 페이지로 이동합니다.</p>
+  </main>
+</body>
+</html>

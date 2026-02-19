@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>사진 촬영</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <style>
+    /* 영상 + 오버레이를 겹치기 위한 래퍼 */
+    .cam-wrap{
+      position: relative;
+      width: min(860px, 92vw);
+      margin: 0 auto;
+      aspect-ratio: 16/9;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: #0b0f17;
+      overflow: hidden;
+    }
+    .cam-wrap video{
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    /* 큰 숫자 오버레이 */
+    .countdown-overlay{
+      position: absolute;
+      inset: 0;
+      display: none;                 /* 기본은 숨김 */
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.35);  /* 살짝 어둡게 */
+      backdrop-filter: blur(2px);
+      -webkit-backdrop-filter: blur(2px);
+      z-index: 10;
+    }
+    .countdown-overlay.show{
+      display: flex;
+    }
+    .countdown-num{
+      font-size: clamp(84px, 14vw, 160px);
+      font-weight: 900;
+      letter-spacing: -0.02em;
+      color: rgba(255,255,255,0.98);
+      text-shadow: 0 10px 30px rgba(0,0,0,0.45);
+      user-select: none;
+    }
+
+    /* 촬영 중 버튼 느낌 */
+    button[disabled]{
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+
+<body>
+  <main class="wrap">
+    <h1 class="title">태블릿 카메라 촬영</h1>
+
+    <!-- ✅ 카메라 + 오버레이 -->
+    <div class="cam-wrap">
+      <video id="video" playsinline autoplay></video>
+
+      <div id="overlay" class="countdown-overlay" aria-hidden="true">
+        <div id="countNum" class="countdown-num">5</div>
+      </div>
+    </div>
+
+    <!-- 버튼 중앙 -->
+    <div style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top: 14px;">
+      <button id="snap" class="primary-btn">사진 찍기</button>
+      <a class="modal-btn" href="/">메인</a>
+    </div>
+
+    <canvas id="canvas" class="hidden"></canvas>
+  </main>
+
+  <script>
+    const token = "{{ token }}";
+
+    const video   = document.getElementById("video");
+    const canvas  = document.getElementById("canvas");
+    const snap    = document.getElementById("snap");
+
+    const overlay = document.getElementById("overlay");
+    const countNum = document.getElementById("countNum");
+
+    async function startCam() {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user" }, // 필요하면 "environment"로 변경
+        audio: false
+      });
+      video.srcObject = stream;
+
+      // 일부 기기에서 메타데이터 로드 전 videoWidth/Height가 0일 수 있어서 안전 처리
+      await new Promise(res => {
+        if (video.readyState >= 2) return res();
+        video.onloadedmetadata = () => res();
+      });
+
+      // iOS/사파리에서 확실히 재생 시작
+      try { await video.play(); } catch (e) {}
+    }
+
+    function sleep(ms) {
+      return new Promise(res => setTimeout(res, ms));
+    }
+
+    async function runCountdown(seconds) {
+      overlay.classList.add("show");
+      overlay.setAttribute("aria-hidden", "false");
+
+      for (let s = seconds; s >= 1; s--) {
+        countNum.textContent = String(s);
+        // 숫자 변경 시 살짝 튀는 느낌(간단 애니메이션)
+        countNum.style.transform = "scale(1.06)";
+        await sleep(80);
+        countNum.style.transform = "scale(1.0)";
+        await sleep(920);
+      }
+
+      overlay.classList.remove("show");
+      overlay.setAttribute("aria-hidden", "true");
+    }
+
+    async function captureAndUpload() {
+      const w = video.videoWidth;
+      const h = video.videoHeight;
+
+      // 혹시 메타데이터 아직이면 잠깐 대기
+      if (!w || !h) {
+        await sleep(200);
+      }
+
+      const ww = video.videoWidth;
+      const hh = video.videoHeight;
+
+      canvas.width = ww;
+      canvas.height = hh;
+
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, ww, hh);
+
+      const blob = await new Promise(res => canvas.toBlob(res, "image/png"));
+      const fd = new FormData();
+      fd.append("image", blob, "capture.png");
+
+      const r = await fetch(`/camera_upload/${token}`, {
+        method: "POST",
+        body: fd
+      });
+
+      const j = await r.json();
+      if (j.ok) window.location.href = j.next;
+      else {
+        alert("업로드 실패: 서버 응답이 올바르지 않습니다.");
+      }
+    }
+
+    snap.addEventListener("click", async () => {
+      // 중복 클릭 방지
+      snap.disabled = true;
+
+      // ✅ 5초 카운트다운(오버레이)
+      await runCountdown(5);
+
+      // ✅ 촬영 + 업로드
+      try {
+        await captureAndUpload();
+      } catch (e) {
+        console.error(e);
+        alert("촬영/업로드 중 오류가 발생했습니다.");
+        snap.disabled = false;
+      }
+    });
+
+    startCam();
+  </script>
+</body>
+</html>

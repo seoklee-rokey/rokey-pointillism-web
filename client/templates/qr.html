@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>QR 업로드</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+  <main class="wrap">
+
+    <h1 class="title">휴대폰으로 사진 업로드</h1>
+    <p>아래 QR을 휴대폰으로 찍고 업로드하세요.</p>
+
+    <img 
+      src="{{ qr_img }}" 
+      alt="QR Code"
+      style="
+        display: block;
+        margin: 0 auto;
+        width: min(320px, 80vw);
+        border-radius: 18px;
+        border: 1px solid rgba(255,255,255,0.12);
+        background: white;
+        padding: 16px;
+      "
+    />
+
+    <p style="opacity:.75; word-break:break-all;">
+      {{ upload_url }}
+    </p>
+
+    <a class="modal-btn" href="/">메인으로</a>
+
+  </main>
+
+  <!-- ✅ 반드시 body 안쪽에 -->
+  <script>
+    const token = "{{ token }}";
+
+    async function checkUpload() {
+      const r = await fetch(`/check_upload/${token}`);
+      const data = await r.json();
+      if (data.uploaded) {
+        window.location.href = `/customize/${token}`;
+      }
+    }
+
+    setInterval(checkUpload, 2000);
+  </script>
+
+</body>
+</html>
