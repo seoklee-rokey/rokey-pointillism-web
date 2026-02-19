@@ -59,6 +59,7 @@ def initialize_robot():
 # 🔹 실제 드로잉 수행
 # -------------------------------------------------
 def perform_drawing(robot_strokes):
+
     from DSR_ROBOT2 import (
         posx, movej, movel, movesx,
         task_compliance_ctrl,
@@ -70,9 +71,16 @@ def perform_drawing(robot_strokes):
         wait,
         DR_FC_MOD_REL,
         DR_AXIS_Z,
-        DR_BASE,
         DR_MVS_VEL_NONE
     )
+
+    # -----------------------------
+    # 튜닝값
+    # -----------------------------
+    DRAW_VEL = 30
+    DRAW_ACC = 40
+    Z_FORCE = 8
+    MAX_SEG = 120   # movesx 최대 안전 포인트 수
 
     JReady = [0, 0, 90, 0, 90, 0]
     movej(JReady, vel=VELOCITY, acc=ACC)
@@ -87,12 +95,18 @@ def perform_drawing(robot_strokes):
         sx, sy, v = stroke[0]
 
         # 1️⃣ 시작점 위로 이동
-        movel(posx([sx, sy, LIFT_Z, RX, RY, RZ]),
-              vel=VELOCITY, acc=ACC)
+        movel(
+            posx([sx, sy, LIFT_Z, RX, RY, RZ]),
+            vel=VELOCITY,
+            acc=ACC
+        )
 
         # 2️⃣ 종이 근처까지 이동
-        movel(posx([sx, sy, DRAW_Z, RX, RY, RZ]),
-              vel=VELOCITY, acc=ACC)
+        movel(
+            posx([sx, sy, DRAW_Z, RX, RY, RZ]),
+            vel=DRAW_VEL,
+            acc=DRAW_ACC
+        )
 
         # ===============================
         # ⭐ 힘제어 시작
@@ -100,38 +114,54 @@ def perform_drawing(robot_strokes):
         print("🟢 Force control ON")
 
         set_ref_coord(1)  # Tool 좌표계
-        task_compliance_ctrl(stx=[1000, 1000, 200, 200, 200, 200])
+
+        task_compliance_ctrl(
+            stx=[1500, 1500, 250, 300, 300, 300]
+        )
         wait(0.3)
 
-        # Z축 방향으로 10N 누르기
         set_desired_force(
-            fd=[0, 0, 10, 0, 0, 0],
+            fd=[0, 0, Z_FORCE, 0, 0, 0],
             dir=[0, 0, 1, 0, 0, 0],
             mod=DR_FC_MOD_REL
         )
 
         # 힘 안정화 대기
         while True:
-            ret = check_force_condition(DR_AXIS_Z, min=5, max=15)
+            ret = check_force_condition(DR_AXIS_Z, min=4, max=12)
             if ret == -1:
                 break
-            wait(0.1)
+            wait(0.05)
 
         # ===============================
-        # ⭐ 선 그리기 (movesx)
+        # ⭐ 선 그리기 (분할 movesx)
         # ===============================
+
         xlist = []
 
-        for x, y, v in stroke:
+        # 포인트 다운샘플링 (중요)
+        for i, (x, y, v) in enumerate(stroke):
+
+            if i % 2 != 0:   # 2개 중 1개만 사용
+                continue
+
             px = posx([x, y, DRAW_Z, RX, RY, RZ])
             xlist.append(px)
 
-        movesx(
-            xlist,
-            vel=[VELOCITY * 2, VELOCITY],
-            acc=[ACC * 2, ACC],
-            vel_opt=DR_MVS_VEL_NONE
-        )
+        # 120개씩 분할 실행
+        for i in range(0, len(xlist), MAX_SEG):
+
+            segment = xlist[i:i + MAX_SEG]
+
+            if len(segment) < 2:
+                continue
+
+            movesx(
+                segment,
+                vel=[DRAW_VEL + 10, DRAW_VEL],
+                acc=[DRAW_ACC + 20, DRAW_ACC],
+                vel_opt=DR_MVS_VEL_NONE
+            )
 
         # ===============================
         # ⭐ 힘제어 종료
@@ -144,11 +174,13 @@ def perform_drawing(robot_strokes):
 
         # 4️⃣ 펜 올리기
         ex, ey, v = stroke[-1]
-        movel(posx([ex, ey, LIFT_Z, RX, RY, RZ]),
-              vel=VELOCITY, acc=ACC)
+        movel(
+            posx([ex, ey, LIFT_Z, RX, RY, RZ]),
+            vel=VELOCITY,
+            acc=ACC
+        )
 
     print("🎉 Drawing Finished")
-
 
 
 # -------------------------------------------------
