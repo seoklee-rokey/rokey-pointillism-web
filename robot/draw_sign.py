@@ -27,8 +27,8 @@ ROBOT_TCP = "GripperDA_v1"
 VELOCITY = 25
 ACC = 50
 
-DRAW_Z = 68     # 종이에 닿는 높이 (실측 후 조정!)
-LIFT_Z = 136     # 선 이동 시 높이
+DRAW_Z = 83.347     # 종이에 닿는 높이 (실측 후 조정!)
+LIFT_Z = 150     # 선 이동 시 높이
 
 RX = 0
 RY = 180
@@ -77,9 +77,9 @@ def perform_drawing(robot_strokes):
     # -----------------------------
     DRAW_VEL = 25
     DRAW_ACC = 40
-    Z_FORCE = 4              # 처음엔 낮게 시작
+    Z_FORCE = 2              # 처음엔 낮게 시작
     MAX_SEG = 100
-    APPROACH_Z = DRAW_Z + 10  # 종이 위 10mm에서 force 시작
+    APPROACH_Z = DRAW_Z + 0.2  # 종이 위 10mm에서 force 시작
 
     JReady = [0, 0, 90, 0, 90, 0]
     movej(JReady, vel=VELOCITY, acc=ACC)
@@ -192,7 +192,7 @@ def main(args=None):
         # 1️⃣ 이미지 → stroke 생성
         # -----------------------------------------
         strokes, img_w, img_h = generate_sketch(
-            "/home/leeseungmin/Desktop/Doosan/rokey_ws/cooperation1/robot/sign.png",
+            "/home/daehyuk/Downloads/rokey-pointillism-web-feature-sketch/robot/sign.png",
             color_mode="bw",
             max_size=300,
             min_stroke_length=15,
@@ -230,4 +230,3 @@ def main(args=None):
 
 if __name__ == "__main__":
     main()
-
