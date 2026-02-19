@@ -11,7 +11,8 @@ import qrcode
 from PIL import Image, ImageOps
 
 # app.py 상단 어딘가에 추가(점묘화용 추가)
-from stipple_processor import generate_stipple
+#from stipple_processor import generate_stipple
+from stipple_module import generate_stipple
 #test 주석
 
 app = Flask(__name__)
@@ -93,7 +94,15 @@ def phone_upload_post(token):
     # save_grayscale(original_path, processed_path)
     # 커스터마이징용 프로토타입(색상 적용) 생성
     processed_path = token_path / "processed.png"
-    generate_stipple(original_path, processed_path, 50, color=True)
+    #generate_stipple(original_path, processed_path, 50, color=True)
+    generate_stipple(
+        img_path=original_path,
+        edge_prob=0.5,
+        inner_density=0.01,
+        color_mode="bw",
+        save_preview_path=processed_path,
+        show_preview=False
+    )
 
 
     return render_template("upload_done.html")
@@ -121,7 +130,15 @@ def camera_upload(token):
 
     processed_path = token_path / "processed.png"
     #save_grayscale(original_path, processed_path)
-    generate_stipple(original_path, processed_path, 50, color=True)
+    #generate_stipple(original_path, processed_path, 50, color=True)
+    generate_stipple(
+        img_path=original_path,
+        edge_prob=0.5,
+        inner_density=0.01,
+        color_mode="bw",
+        save_preview_path=processed_path,
+        show_preview=False
+    )
 
     return jsonify({"ok": True, "next": url_for("customize_page", token=token)})
 
@@ -159,7 +176,15 @@ def select_gallery(token):
 
     processed_path = token_path / "processed.png"
     #save_grayscale(original_path, processed_path)
-    generate_stipple(original_path, processed_path, 50, color=True)
+    #generate_stipple(original_path, processed_path, 50, color=True)
+    generate_stipple(
+        img_path=original_path,
+        edge_prob=0.5,
+        inner_density=0.01,
+        color_mode="bw",
+        save_preview_path=processed_path,
+        show_preview=False
+    )
 
     return redirect(url_for("customize_page", token=token))
 
@@ -197,8 +222,15 @@ def customize_page(token):
     # ✅ processed가 아직 없으면 여기서 생성 (타이밍 문제 방지)
     if not processed_path.exists():
         #save_grayscale(original, processed_path)
-        generate_stipple(original, processed_path, 50, color=True)
-        
+        #generate_stipple(original, processed_path, 50, color=True)
+        generate_stipple(
+            img_path=original,
+            edge_prob=0.5,
+            inner_density=0.01,
+            color_mode="bw",
+            save_preview_path=processed_path,
+            show_preview=False
+        )
     original_url = url_for("uploaded_file", token=token, filename=original.name)
     # ✅ 캐시 무효화 쿼리 (캐시 문제 방지)
     processed_url = url_for("uploaded_file", token=token, filename="processed.png") + f"?v={int(time.time())}"
@@ -225,6 +257,27 @@ def check_upload(token):
 
 
 # 점묘화용 추가
+# @app.route("/process/<token>", methods=["POST"])
+# def process_image(token):
+#     token_path = token_dir(token)
+
+#     originals = list(token_path.glob("original.*"))
+#     if not originals:
+#         abort(404, "No original image")
+
+#     data = request.get_json(silent=True) or {}
+#     density = int(data.get("density", 50))
+
+#     original = originals[0]
+#     processed_path = token_path / "processed.png"
+
+#     # ✅ 점묘화 생성(실험용)
+#     generate_stipple(original, processed_path, density)
+
+#     # ✅ 캐시 무효화해서 브라우저가 새 파일을 다시 받게 함
+#     processed_url = url_for("uploaded_file", token=token, filename="processed.png") + f"?v={int(time.time())}"
+#     return jsonify({"ok": True, "processed_url": processed_url})
+
 @app.route("/process/<token>", methods=["POST"])
 def process_image(token):
     token_path = token_dir(token)
@@ -234,16 +287,30 @@ def process_image(token):
         abort(404, "No original image")
 
     data = request.get_json(silent=True) or {}
-    density = int(data.get("density", 50))
+
+    # ✅ 새 파라미터 3개 받기 (기본값 포함)
+    edge_prob = float(data.get("edge_prob", 0.5))          # 0.1 ~ 1.0
+    inner_density = float(data.get("inner_density", 0.01)) # 0.00 ~ 0.50
+    color_mode = data.get("color_mode", "bw")              # "bw" | "color"
 
     original = originals[0]
     processed_path = token_path / "processed.png"
 
-    # ✅ 점묘화 생성(실험용)
-    generate_stipple(original, processed_path, density)
+    # ✅ 점묘화 생성 (웹용: 저장 경로를 save_preview_path로)
+    generate_stipple(
+        img_path=original,
+        edge_prob=edge_prob,
+        inner_density=inner_density,
+        color_mode=color_mode,
+        save_preview_path=processed_path,
+        show_preview=False
+    )
 
-    # ✅ 캐시 무효화해서 브라우저가 새 파일을 다시 받게 함
-    processed_url = url_for("uploaded_file", token=token, filename="processed.png") + f"?v={int(time.time())}"
+    # ✅ 캐시 무효화
+    processed_url = (
+        url_for("uploaded_file", token=token, filename="processed.png")
+        + f"?v={int(time.time())}"
+    )
     return jsonify({"ok": True, "processed_url": processed_url})
 
 
