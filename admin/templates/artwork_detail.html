@@ -77,8 +77,9 @@
         }
 
         .meta {
-            color: #6b7280;
-            font-size: 14px;
+            color: #9ca3af;
+            /* 기존보다 더 연한 회색 */
+            font-size: 13px;
             margin-bottom: 16px;
         }
 
@@ -170,9 +171,14 @@
         <div class="card">
             <!-- ✅ 카드 상단 오른쪽 버튼 영역 -->
 
+            {% if art.created_at %}
+            <div class="meta">
+                {{ art.created_at}}
+            </div>
+            {% endif %}
 
             <div class="title-row">
-                <div class="title">{{ art.title }}</div>
+                <div class="title">{{ art.title }} </div>
 
                 <div style="display:flex; gap:10px; align-items:center;">
                     <a href="{{ url_for('artwork_edit', artwork_id=art.id) }}" class="btn-primary">수정</a>
@@ -186,13 +192,6 @@
                     <a href="{{ url_for('main_page') }}" class="btn-top">목록</a>
                 </div>
             </div>
-
-
-            <!-- <div class="title-row">
-                <div class="title">{{ art.title }}</div>
-                <a href="{{ url_for('main_page') }}" class="btn-top">목록으로</a>
-            </div> -->
-
 
 
 

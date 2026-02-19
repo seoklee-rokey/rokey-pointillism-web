@@ -122,8 +122,7 @@ def artwork_detail(artwork_id):
         abort(404)
 
     # 생성 시간 포멧 변환
-    art['created_at'] = ts_to_str(art['created_at'])
-
+    art["created_at"] = ts_to_str(art.get("created_at"))
     return render_template("artwork_detail.html", art=art)
 
 
@@ -208,6 +207,8 @@ def main_page():
         return redirect(url_for("login"))
 
     artworks = list_artworks()
+    for a in artworks:
+        a["created_at"] = ts_to_str(a.get("created_at"))
     return render_template("main_page.html", username=session["username"], artworks=artworks)
 
 
