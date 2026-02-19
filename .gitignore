@@ -10,3 +10,7 @@
 # 혹은 더 정확히 (추천)
 test/rokey-c1fc2-firebase-adminsdk-fbsvc-5ba5f78dcd.json
 admin/rokey-c1fc2-firebase-adminsdk-fbsvc-5ba5f78dcd.json
+
+# runtime artifacts
+client/uploads/
+client/static/qr/

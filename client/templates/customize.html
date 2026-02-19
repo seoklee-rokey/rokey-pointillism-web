@@ -415,6 +415,7 @@
     closeBtn.addEventListener("click", closeModal);
     modal.addEventListener("click", (e) => {
       if (e.target?.dataset?.close === "1") closeModal();
+
     });
 
     // ✅ 값이 바뀌는 순간마다 “바로 반영”
@@ -438,41 +439,8 @@
       scheduleAutoProcess();
     });
 
-    // runBtn.addEventListener("click", () => {
-    //   alert("다음 단계: 로봇 RUN 페이지 연결 예정");
-    // });
-    
-    runBtn.addEventListener("click", async () => {
-      // 현재 hidden 값(=모달 옵션 반영된 값)
-      const payload = {
-        edge_prob: Number(hiddenEdge.value),
-        inner_density: Number(hiddenInner.value),
-        color_mode: hiddenColor.value
-      };
-
-      runBtn.disabled = true;
-      runBtn.textContent = "로봇 준비 중...";
-
-      try {
-        const res = await fetch(`/api/robot/run/${token}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
-
-        const data = await res.json();
-        if (!res.ok || !data.ok || !data.job_id) {
-          throw new Error(data?.error || "run failed");
-        }
-
-        // ✅ 진행도 페이지로 이동
-        window.location.href = `/robot/run/${data.job_id}`;
-      } catch (e) {
-        console.error(e);
-        alert("로봇 실행 실패: " + e.message);
-        runBtn.disabled = false;
-        runBtn.textContent = "로봇 작동 시작";
-      }
+    runBtn.addEventListener("click", () => {
+      alert("다음 단계: 로봇 RUN 페이지 연결 예정");
     });
   </script>
 </body>
