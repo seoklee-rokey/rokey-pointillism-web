@@ -187,36 +187,32 @@ def generate_sketch(
     image = resize_keep_ratio(image, max_size)
 
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    edges = cv2.Canny(gray, 100,200)
 
-    h, w = gray.shape
+    edges = cv2.Canny(gray, 100, 220)
 
-    # 작은 노이즈 제거
     kernel = np.ones((3,3), np.uint8)
     edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel)
 
-    # 연결 컴포넌트 분리
-    num_labels, labels = cv2.connectedComponents(edges)
+    h, w = gray.shape
+
+    contours, _ = cv2.findContours(
+        edges,
+        cv2.RETR_LIST,
+        cv2.CHAIN_APPROX_NONE
+    )
 
     strokes = []
-    preview = 255 * np.ones((h, w, 3), dtype=np.uint8)
 
-    for label in range(1, num_labels):
+    for contour in contours:
 
-        ys, xs = np.where(labels == label)
-
-        if len(xs) < min_stroke_length:
+        if len(contour) < min_stroke_length:
             continue
-
-        # 좌표 리스트 생성
-        points = list(zip(xs, ys))
-
-        # 간단한 정렬 (왼쪽부터 시작)
-        points.sort(key=lambda p: (p[0], p[1]))
 
         ordered_stroke = []
 
-        for x, y in points:
+        for pt in contour:
+            x = int(pt[0][0])
+            y = int(pt[0][1])
 
             if color_mode == "bw":
                 rgb_color = (0, 0, 0)
@@ -228,22 +224,33 @@ def generate_sketch(
                     continue
 
             v = color_to_index(rgb_color)
-
             ordered_stroke.append((x, y, v))
-
-            cv2.circle(
-                preview,
-                (x, y),
-                0,
-                (rgb_color[2], rgb_color[1], rgb_color[0]),
-                -1
-            )
 
         if len(ordered_stroke) > 0:
             strokes.append(ordered_stroke)
 
+    # ===============================
+    # ⭐ 실제 strokes 기반으로 시각화
+    # ===============================
     if show_preview:
-        cv2.imshow("Sketch Preview", preview)
+
+        preview = 255 * np.ones((h, w, 3), dtype=np.uint8)
+
+        for stroke in strokes:
+            for x, y, v in stroke:
+
+                # v를 팔레트 색으로 변환
+                rgb_color = palette[v - 1]
+
+                cv2.circle(
+                    preview,
+                    (x, y),
+                    0,   # 반지름 0
+                    (rgb_color[2], rgb_color[1], rgb_color[0]),
+                    -1
+                )
+
+        cv2.imshow("Sketch Preview (Actual Points)", preview)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
 
