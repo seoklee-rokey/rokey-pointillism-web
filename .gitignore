@@ -14,3 +14,7 @@ admin/rokey-c1fc2-firebase-adminsdk-fbsvc-5ba5f78dcd.json
 # runtime artifacts
 client/uploads/
 client/static/qr/
+
+
+__pycache__/
+*.pyc
