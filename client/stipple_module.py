@@ -184,7 +184,7 @@ def generate_stipple(
             cv2.circle(
                 preview,
                 (x, y),
-                0,
+                1,
                 (rgb_color[2], rgb_color[1], rgb_color[0]),
                 -1,
             )

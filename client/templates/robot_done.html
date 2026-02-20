@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>완료</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <style>
+    .done-card{
+      width:min(520px, 92vw);
+      margin:0 auto;
+      background:#121a2a;
+      border:1px solid rgba(255,255,255,.12);
+      border-radius:18px;
+      padding:22px;
+      text-align:center;
+    }
+    .done-title{font-size:22px;margin:0 0 8px 0;}
+    .done-sub{opacity:.85;font-size:14px;margin:0 0 18px 0;}
+    .check{
+      width:64px;height:64px;border-radius:999px;
+      display:grid;place-items:center;margin:0 auto 14px auto;
+      background:rgba(59,130,246,.18);
+      border:1px solid rgba(59,130,246,.35);
+      font-size:34px;
+    }
+    .done-btn{
+      width:100%;
+      padding:12px 16px;
+      border-radius:12px;
+      border:none;
+      background:#3b82f6;
+      color:white;
+      font-size:15px;
+      font-weight:600;
+      cursor:pointer;
+      transition:all .2s ease;
+    }
+
+    .done-btn:hover{
+      transform:translateY(-2px);
+      background:#2563eb;
+      box-shadow:0 8px 18px rgba(59,130,246,.35);
+    }
+
+    .done-btn:active{
+      transform:translateY(0);
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <div class="done-card">
+      <div class="check">✓</div>
+      <h2 class="done-title">점묘화 그림 완성!</h2>
+      <p class="done-sub">로봇이 모든 작업을 마쳤어요.</p>
+
+      <div class="controls" style="margin-top:10px;">
+        <button class="done-btn" type="button" onclick="location.href='/'">메인으로 돌아가기</button>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

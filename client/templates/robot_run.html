@@ -6,15 +6,37 @@
   <title>로봇 진행도</title>
   <link rel="stylesheet" href="/static/css/style.css" />
   <style>
-    .card{max-width:720px;margin:0 auto;background:#121a2a;border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:18px;}
+    .card{max-width:720px;width: min(420px, 92vw);margin:0 auto;background:#121a2a;border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:18px;}
     .bar{height:14px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden;}
     .bar > div{height:100%;width:0%;background:#3b82f6;}
     .meta{display:flex;justify-content:space-between;margin-top:10px;font-size:13px;opacity:.85}
+    .home-btn{
+      padding:10px 18px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.18);
+      background:rgba(255,255,255,.06);
+      color:#fff;
+      font-size:14px;
+      font-weight:600;
+      cursor:pointer;
+      transition:all .2s ease;
+      backdrop-filter:blur(4px);
+    }
+
+    .home-btn:hover{
+      background:rgba(255,255,255,.12);
+      transform:translateY(-2px);
+      box-shadow:0 6px 16px rgba(0,0,0,.25);
+    }
+
+    .home-btn:active{
+      transform:translateY(0);
+    }
   </style>
 </head>
 <body>
   <main class="wrap">
-    <h1 class="title">로봇 작동 중</h1>
+    <h1 class="title">로봇 작동 중...</h1>
 
     <div class="card">
       <div class="bar"><div id="fill"></div></div>
@@ -25,7 +47,7 @@
     </div>
 
     <div class="controls" style="margin-top:16px;">
-      <button class="btn" type="button" onclick="location.href='/'">메인</button>
+      <button class="home-btn" type="button" onclick="cancelAndGoHome()">작업 취소</button>
     </div>
   </main>
 
@@ -47,12 +69,21 @@
       const p = Math.max(0, Math.min(100, Number(data.percent ?? data.progress ?? 0)));
       fill.style.width = p.toFixed(1) + "%";
       percentEl.textContent = p.toFixed(1) + "%";
-      msgEl.textContent = data.message ?? `current_v=${data.current_v ?? "-"}`;
+      msgEl.textContent = data.message ?? ``; //current_v=${data.current_v ?? "-"}
 
       // ✅ 완료 처리(브리지 payload에 맞춰 한 줄만 수정하면 됨)
       if (data.done === true || data.state === "SUCCEEDED") {
         window.location.href = `/robot/done/${jobId}`;
       }
+    }
+
+    async function cancelAndGoHome(){
+      try{
+        await fetch(`/api/robot/cancel/${jobId}`, { method: "POST" });
+      }catch(e){
+        // 실패해도 UX상 그냥 홈으로
+      }
+      location.href = "/";
     }
 
     tick();

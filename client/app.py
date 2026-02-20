@@ -3,15 +3,12 @@ import sys
 import secrets
 import shutil
 import time
-from pathlib import Path
-
-import qrcode
-from PIL import Image, ImageOps
-
-from stipple_processor import generate_stipple
-
 import requests
+import qrcode
 
+from pathlib import Path
+from PIL import Image, ImageOps
+from stipple_processor import generate_stipple
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory, jsonify, abort
 
 # app.py 상단 어딘가에 추가(점묘화용 추가)
@@ -441,6 +438,21 @@ def api_robot_status(job_id):
 @app.get("/robot/run/<job_id>")
 def robot_run_page(job_id):
     return render_template("robot_run.html", job_id=job_id)
+
+@app.get("/robot/done/<job_id>")
+def robot_done(job_id):
+    # 필요하면 여기서 job_id로 결과 조회/저장 파일 경로 찾아서 넘길 수도 있음(나중에 확장)
+    return render_template("robot_done.html", job_id=job_id)
+
+
+@app.post("/api/robot/cancel/<job_id>")
+def api_robot_cancel(job_id):
+    try:
+        r = requests.post(f"{ROBOT_BRIDGE_URL}/cancel", json={"job_id": job_id}, timeout=5.0)
+        r.raise_for_status()
+        return jsonify(r.json())
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Bridge error: {e}"}), 502
 
 # if __name__ == "__main__":
 #     app.run(host="0.0.0.0", port=5000, debug=True)
