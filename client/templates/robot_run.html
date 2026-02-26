@@ -6,6 +6,25 @@
   <title>로봇 진행도</title>
   <link rel="stylesheet" href="/static/css/style.css" />
   <style>
+    .previewWrap {
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 420px;  /* customize와 동일 */
+      margin-bottom: 18px;
+      overflow: hidden;
+    }
+
+    .previewWrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.08);
+      transform-origin: center center;
+      transition: transform 0.25s ease;
+    }
     .card{max-width:720px;width: min(420px, 92vw);margin:0 auto;background:#121a2a;border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:18px;}
     .bar{height:14px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden;}
     .bar > div{height:100%;width:0%;background:#3b82f6;}
@@ -32,6 +51,28 @@
     .home-btn:active{
       transform:translateY(0);
     }
+
+    /* ✅ 팝업(서버 다운 안내) */
+    #serverPopup{
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,.65);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      z-index:9999;
+    }
+    #serverPopup .box{
+      background:#121a2a;
+      border:1px solid rgba(255,255,255,.15);
+      padding:28px;
+      border-radius:16px;
+      width:min(420px,90vw);
+      text-align:center;
+    }
+    #serverPopup h3{margin:0 0 12px 0;}
+    #serverPopup p{opacity:.85;margin:0 0 18px 0;line-height:1.35;}
+    #resumeBtn{display:none;}
   </style>
 </head>
 <body>
@@ -39,6 +80,10 @@
     <h1 class="title">로봇 작동 중...</h1>
 
     <div class="card">
+      <div id="processedWrap" class="previewWrap" data-rotated="{{ 1 if rotated else 0 }}">
+        <img id="processed" />
+      </div>
+
       <div class="bar"><div id="fill"></div></div>
       <div class="meta">
         <div id="percent">0%</div>
@@ -51,31 +96,150 @@
     </div>
   </main>
 
+  <!-- ✅ 서버 다운 팝업 -->
+  <div id="serverPopup">
+    <div class="box">
+      <h3 id="popupTitle"></h3>
+      <p id="popupBody"></p>
+      <button id="resumeBtn" class="home-btn" type="button">작업 재개</button>
+    </div>
+  </div>
+
   <script>
     const jobId = "{{ job_id }}";
+    const token = "{{ token or '' }}";
+
+    const processedEl = document.getElementById("processed");
+    const processedWrap = document.getElementById("processedWrap");
+
+    let currentRotation = 0;
+    function setRotationFromServerRotated() {
+      currentRotation = (processedWrap?.dataset?.rotated === "1") ? -90 : 0;
+    }
+
+    function applyRotOnly() {
+      if (!processedEl) return;
+      processedEl.style.transform = `rotate(${currentRotation}deg)`;
+    }
+
+    if (token && processedEl) {
+      setRotationFromServerRotated(); // src 세팅 전에
+
+      processedEl.addEventListener("load", () => {
+        setRotationFromServerRotated();
+        applyRotOnly();
+      });
+
+      processedEl.src = `/uploads/${token}/processed.png?v=${Date.now()}`;
+
+      if (processedEl.complete && processedEl.naturalWidth) {
+        setRotationFromServerRotated();
+        applyRotOnly();
+      }
+
+      window.addEventListener("resize", applyRotOnly);
+    }
+
     const fill = document.getElementById("fill");
     const percentEl = document.getElementById("percent");
     const msgEl = document.getElementById("msg");
 
+    // ✅ 팝업 요소/함수
+    const popup = document.getElementById("serverPopup");
+    const popupTitle = document.getElementById("popupTitle");
+    const popupBody = document.getElementById("popupBody");
+    const resumeBtn = document.getElementById("resumeBtn");
+
+    function showPopup(title, body, canResume){
+      popupTitle.textContent = title;
+      popupBody.textContent = body;
+      resumeBtn.style.display = canResume ? "inline-block" : "none";
+      popup.style.display = "flex";
+    }
+
+    function hidePopup(){
+      popup.style.display = "none";
+    }
+
     async function tick(){
-      const res = await fetch(`/api/robot/status/${jobId}`);
-      const data = await res.json();
+      try{
+        const res = await fetch(`/api/robot/status/${jobId}`, { cache: "no-store" });
 
-      if (!res.ok || !data.ok) {
-        msgEl.textContent = (data && data.error) ? data.error : "상태 조회 실패";
-        return;
-      }
+        // ✅ (2) 브릿지 자체 다운/타임아웃 등: Flask가 502 등으로 응답
+        if (!res.ok){
+          showPopup(
+            "브릿지 서버가 다운되었습니다",
+            "action_bridge_node.py(8089)를 다시 실행해야 합니다.",
+            false
+          );
+          return;
+        }
 
-      const p = Math.max(0, Math.min(100, Number(data.percent ?? data.progress ?? 0)));
-      fill.style.width = p.toFixed(1) + "%";
-      percentEl.textContent = p.toFixed(1) + "%";
-      msgEl.textContent = data.message ?? ``; //current_v=${data.current_v ?? "-"}
+        const data = await res.json();
 
-      // ✅ 완료 처리(브리지 payload에 맞춰 한 줄만 수정하면 됨)
-      if (data.done === true || data.state === "SUCCEEDED") {
-        window.location.href = `/robot/done/${jobId}`;
+        // Flask는 보통 ok:false로 내려줄 수 있음
+        if (!data || !data.ok){
+          msgEl.textContent = (data && data.error) ? data.error : "상태 조회 실패";
+          return;
+        }
+
+        // ✅ (1) 액션 서버만 다운: ok:true + error:"ACTION_SERVER_DOWN"
+        if (data.error === "ACTION_SERVER_DOWN"){
+          showPopup(
+            "액션 서버가 다운되었습니다",
+            "dot_drawer_action_dev.py를 다시 실행한 뒤 '작업 재개'를 눌러주세요.",
+            true
+          );
+          return;
+        }
+
+        // 정상 상태면 팝업 닫기
+        hidePopup();
+
+        const p = Math.max(0, Math.min(100, Number(data.percent ?? data.progress ?? 0)));
+        fill.style.width = p.toFixed(1) + "%";
+
+        const eta = Number(data.eta_min ?? 0);
+        if (eta > 0) {
+          percentEl.textContent = `${p.toFixed(1)}%  |  예상 ${eta}분`;
+        } else {
+          percentEl.textContent = `${p.toFixed(1)}%  |  예상 1분 미만`;
+        }
+
+        msgEl.textContent = data.message ?? ``;
+
+        // ✅ 완료 처리(브리지 payload에 맞춰)
+        if (data.done === true || data.state === "SUCCEEDED") {
+          window.location.href = `/robot/done/${jobId}`;
+        }
+
+      }catch(e){
+        // 네트워크 자체 오류 (Flask 접근 불가 등)
+        showPopup(
+          "웹 서버 연결 실패",
+          "Flask 서버(5169)에 연결할 수 없습니다.",
+          false
+        );
       }
     }
+
+    // ✅ 재개 버튼: Flask 프록시(/api/robot/resume/<job_id>) 호출
+    resumeBtn.addEventListener("click", async () => {
+      try{
+        const res = await fetch(`/api/robot/resume/${jobId}`, { method: "POST" });
+        const data = await res.json();
+
+        if (res.ok && data && data.ok) {
+          hidePopup(); // 재개 성공 시 닫기
+          // 다음 tick부터 진행률 갱신됨
+        } else {
+          // 아직 액션 서버가 안 켜졌을 때 등
+          // 그대로 팝업 유지 (메시지만 갱신하고 싶으면 여기서 showPopup 업데이트 가능)
+        }
+      }catch(e){
+        // 재개 요청 자체 실패 -> 팝업 유지
+      }
+    });
 
     async function cancelAndGoHome(){
       try{
